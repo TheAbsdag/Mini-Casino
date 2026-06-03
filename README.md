@@ -6,3 +6,5 @@ Integrantes proyecto:
 * Santiago Castelblanco: scastelblancoc@unal.edu.co
 * Juan Manuel Russi Martinez: jrussim@unal.edu.co
 * Matthew Nielsen Guaqueta: mnielsen@unal.edu.co
+
+Requiere: Al menos c++11
