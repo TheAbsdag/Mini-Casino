@@ -71,3 +71,6 @@ Testing/
 # Archivo especifico de programa dev c++ generado localmente
 *.layout
 Makefile.win
+
+# Archivos de texto generados
+*.txt
