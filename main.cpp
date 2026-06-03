@@ -2,6 +2,8 @@
 #include "Usuario.h"
 #include "Tragamonedas.h"
 #include "Ruleta.h"
+#include "Archivos.h"
+#include "Usuario.h"
 
 using namespace std;
 
@@ -10,6 +12,8 @@ void mostrarMenuPrincipal();
 void mostrarMenuJugador();
 void registrarUsuario();
 void iniciarSesion();
+
+Usuario usuarioActual;
 
 int main(int argc, char** argv) {
     int opcion;
@@ -59,10 +63,93 @@ void mostrarMenuJugador() {
 
 void registrarUsuario() {
     cout << "\n>> Registrar nuevo usuario" << endl;
-    // TODO: Implementar registro
+    string nombre;
+    double capital;
+
+    cout << "Ingrese nombre de usuario: ";
+    cin >> nombre;
+
+    // Verificar si el usuario ya existe
+    double capitalExistente;
+    if (cargarUsuario(nombre, capitalExistente)) {
+        cout << "El usuario ya existe. Capital actual: " << capitalExistente << endl;
+        return;
+    }
+
+    cout << "Ingrese capital inicial: ";
+    cin >> capital;
+
+    if (capital <= 0) {
+        cout << "El capital debe ser mayor a cero." << endl;
+        return;
+    }
+
+    // Guardar el usuario en archivo
+    guardarUsuario(nombre, capital);
+
+    cout << "Usuario registrado exitosamente con capital: " << capital << endl;
 }
 
 void iniciarSesion() {
     cout << "\n>> Iniciar sesion" << endl;
-    // TODO: Implementar inicio de sesion
+    string nombre;
+    cout << "Ingrese nombre de usuario: ";
+    cin >> nombre;
+
+    double capital;
+    if (!cargarUsuario(nombre, capital)) {
+        cout << "Usuario no encontrado. Debe registrarse primero." << endl;
+        return;
+    }
+
+    // Crear el usuario actual
+    usuarioActual = Usuario(nombre, capital);
+
+    cout << "Bienvenido " << nombre << "! Capital actual: " << capital << endl;
+
+    // Menu del jugador
+    int opcion;
+    do {
+        mostrarMenuJugador();
+        cout << "Ingrese una opcion: ";
+        cin >> opcion;
+
+        switch(opcion) {
+            case 1:
+                // Jugar tragamonedas - TODO: implementar
+                cout << "Tragamonedas - Funcionalidad proxima..." << endl;
+                break;
+            case 2:
+                // Jugar ruleta - TODO: implementar
+                cout << "Ruleta - Funcionalidad proxima..." << endl;
+                break;
+            case 3:
+                // Recargar capital
+                {
+                    double monto;
+                    cout << "Ingrese monto a recargar: ";
+                    cin >> monto;
+
+                    if (monto > 0) {
+                        usuarioActual.recargar(monto);
+                        guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
+                        cout << "Capital recargado. Nuevo capital: " << usuarioActual.getCapital() << endl;
+                    } else {
+                        cout << "El monto debe ser mayor a cero." << endl;
+                    }
+                }
+                break;
+            case 4:
+                // Ver historial
+                mostrarHistorial(usuarioActual.getNombre());
+                break;
+            case 5:
+                // Guardar estado antes de cerrar sesion
+                guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
+                cout << "Sesion cerrada. Datos guardados." << endl;
+                break;
+            default:
+                cout << "Opcion no valida." << endl;
+        }
+    } while(opcion != 5);
 }

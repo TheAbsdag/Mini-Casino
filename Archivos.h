@@ -11,8 +11,6 @@ void mostrarHistorial(std::string usuario);
 
 class Archivos
 {
-	public:
-	protected:
 };
 
 #endif

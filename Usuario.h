@@ -11,6 +11,8 @@ private:
 public:
     // Constructor
     Usuario();
+    
+    //Constructor con datos
     Usuario(std::string nom, double cap);
 
     // Getters
@@ -27,3 +29,5 @@ public:
 };
 
 #endif
+
+
