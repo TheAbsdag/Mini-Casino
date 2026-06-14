@@ -60,7 +60,7 @@ int Ruleta::simularGiro() {
     double omega = distVelocidad(generador);
     double theta = distDesfase(generador);
     friccion = distFriccion(generador);
-    //Delta de tiempo para que corresponda con cada actualización dentro de los frames deseados
+    //Delta de tiempo para que corresponda con cada actualizaciï¿½n dentro de los frames deseados
     double dt = 1.0 / 30.0;
 
     system("cls");
@@ -241,26 +241,39 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         cout << "\n";
     }
 
-    //Muestra la informacion de estado: numero/color actual de la bola,
-    //velocidad angular, y el recorrido (3 anteriores y 2 siguientes)
-    //en la secuencia de la ruleta alrededor de la posicion actual
+    //Tabla informativa a la derecha del circulo: usa SetConsoleCursorPosition
+    //para escribir en las columnas 62+ de las filas 0,2,4,5 sin recargar el
+    //circulo (evita parpadeo y es mas rapido que redibujar la cuadricula)
     int ant3 = (indice - 3 + NUM_CASILLAS) % NUM_CASILLAS;
     int ant2 = (indice - 2 + NUM_CASILLAS) % NUM_CASILLAS;
     int ant1 = (indice - 1 + NUM_CASILLAS) % NUM_CASILLAS;
     int sig1 = (indice + 1) % NUM_CASILLAS;
     int sig2 = (indice + 2) % NUM_CASILLAS;
 
-    cout << "\n     Bola: ";
+    SetConsoleCursorPosition(consola, {62, 0});
+    cout << "| Posicion actual: | ";
     establecerColor(colorActual.substr(0, 1));
-    cout << numActual << " " << colorActual;
+    cout << setw(2) << setfill('0') << numActual << setfill(' ');
     establecerColor("default");
-    cout << "  |  Velocidad: " << fixed << setprecision(0) << omega << " deg/s\n";
-    cout << "     Recorrido: " << numeros[ant3] << " -> " << numeros[ant2]
-         << " -> " << numeros[ant1] << " -> [";
+    cout << "  ";
+
+    SetConsoleCursorPosition(consola, {62, 2});
+    cout << "| Velocidad (deg/s) | " << setw(4) << (int)round(omega) << "  ";
+
+    SetConsoleCursorPosition(consola, {62, 4});
+    cout << "| Recorrido: |";
+
+    SetConsoleCursorPosition(consola, {62, 5});
+    cout << "  " << setw(2) << setfill('0') << numeros[ant3] << " -> "
+         << setw(2) << setfill('0') << numeros[ant2] << " -> "
+         << setw(2) << setfill('0') << numeros[ant1] << " -> [";
     establecerColor(colorActual.substr(0, 1));
-    cout << numActual;
+    cout << setw(2) << setfill('0') << numActual;
     establecerColor("default");
-    cout << "] -> " << numeros[sig1] << " -> " << numeros[sig2] << "\n";
+    cout << setfill(' ') << "] -> " << setw(2) << setfill('0') << numeros[sig1]
+         << " -> " << setw(2) << setfill('0') << numeros[sig2] << "  ";
+
+    SetConsoleCursorPosition(consola, {0, H});
 }
 
 /*
