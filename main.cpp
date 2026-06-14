@@ -7,7 +7,7 @@
 
 using namespace std;
 
-// Declaración de funciones
+// Declaraciï¿½n de funciones
 void mostrarMenuPrincipal();
 void mostrarMenuJugador();
 void registrarUsuario();
@@ -116,13 +116,14 @@ void iniciarSesion() {
 
         switch(opcion) {
             case 1:
-                // Jugar tragamonedas - TODO: implementar
                 cout << "Tragamonedas - Funcionalidad proxima..." << endl;
                 break;
-            case 2:
-                // Jugar ruleta - TODO: implementar
-                cout << "Ruleta - Funcionalidad proxima..." << endl;
+            case 2: {
+                Ruleta ruleta;
+                ruleta.jugar(usuarioActual);
+                guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
                 break;
+            }
             case 3:
                 // Recargar capital
                 {
