@@ -19,7 +19,9 @@ const int SECUENCIA_RULETA[37] = {
 };
 
 /*
-Inicializacion de la rueda, manejamos entre pares e impares y los rangos
+Inicializacion de la rueda: asigna a cada posicion el numero
+correspondiente de la secuencia europea y su color (Rojo, Negro o Verde)
+basado en las reglas estandar de la ruleta europea
 */
 void Ruleta::inicializarRueda() {
     for (int i = 0; i < NUM_CASILLAS; i++) {
@@ -36,7 +38,7 @@ void Ruleta::inicializarRueda() {
 }
 
 /*
-Complementamos
+Inicializa el generador de numeros aleatorios y la secuencia de la rueda
 */
 Ruleta::Ruleta() {
     generador.seed(random_device{}());
@@ -45,18 +47,25 @@ Ruleta::Ruleta() {
     colorGanador = "Verde";
 }
 
+/*
+Simula el giro fisico de la ruleta: genera velocidad angular aleatoria,
+desacelera por friccion en pasos de 33ms (30fps), y al detenerse
+calcula la casilla ganadora segun el angulo final
+*/
 int Ruleta::simularGiro() {
     uniform_real_distribution<double> distVelocidad(700.0, 1400.0);
     uniform_real_distribution<double> distDesfase(0.0, 360.0);
-    uniform_real_distribution<double> distFriction(200.0, 400.0);
+    uniform_real_distribution<double> distFriccion(200.0, 400.0);
 
     double omega = distVelocidad(generador);
     double theta = distDesfase(generador);
-    friccion = distFriction(generador);
+    friccion = distFriccion(generador);
+    //Delta de tiempo para que corresponda con cada actualización dentro de los frames deseados
     double dt = 1.0 / 30.0;
 
     system("cls");
 
+	//Loop de muestreo para la visualizacion del cambio
     while (omega > 0.0) {
         mostrarAnimacion(theta, omega, dt);
 
@@ -66,9 +75,11 @@ int Ruleta::simularGiro() {
         if (theta >= 360.0) theta -= 360.0;
         if (theta < 0.0) theta += 360.0;
 
+		//Dormir el proceso mientras se espera al siguiente calculo
         this_thread::sleep_for(chrono::milliseconds(33));
     }
 
+	//Calculo de numero finalizador ya que la velocidad es 0
     double anguloCasilla = 360.0 / NUM_CASILLAS;
     int indice = (int)round(theta / anguloCasilla) % NUM_CASILLAS;
     if (indice < 0) indice += NUM_CASILLAS;
@@ -81,6 +92,10 @@ int Ruleta::simularGiro() {
     return indice;
 }
 
+/*
+Cambia el color del texto en la consola usando SetConsoleTextAttribute.
+"R" = rojo intenso, "V" = verde intenso, cualquier otro = blanco/gris
+*/
 static void establecerColor(const string& color) {
     HANDLE consola = GetStdHandle(STD_OUTPUT_HANDLE);
     if (color == "R") {
@@ -92,7 +107,16 @@ static void establecerColor(const string& color) {
     }
 }
 
+/*
+Dibuja la animacion del circulo y la bola en la consola. Usa
+SetConsoleCursorPosition para sobrescribir el frame anterior.
+Construye una cuadriculade caracteres con una matriz paralela
+de colores, luego la renderiza en segmentos del mismo color 
+para minimizar llamadas a la API de Windows
+*/
 void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
+    //Obtiene el manejador de la consola para posicionar el cursor
+    //y cambiar colores sin borrar la pantalla (evita parpadeo entre frames)
     HANDLE consola = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleCursorPosition(consola, {0, 0});
 
@@ -102,6 +126,8 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
     int numActual = numeros[indice];
     string colorActual = colores[indice];
 
+    //Dimensiones del circulo: RX=22, RY=11 compensa la relacion de aspecto
+    //2:1 de los caracteres de la consola para que se vea como un circulo
     const double PI = 3.14159265358979323846;
     const int RY = 11;
     const int RX = 22;
@@ -110,14 +136,28 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
     const int W = CX * 2 + 4;
     const int H = CY * 2 + 2;
 
+    //Codigos de color para la cuadricula: 0=defecto, 1=rojo, 2=verde,
+    //3=blanco, 4=amarillo (para la bola y el centro)
     const int COL_DEF = 0, COL_ROJ = 1, COL_VER = 2, COL_BLA = 3, COL_AMA = 4;
 
+    //Cuadricula de caracteres y matriz paralela de colores
     vector<string> cuadricula(H, string(W, ' '));
     vector<vector<int>> colorCuadricula(H, vector<int>(W, COL_DEF));
 
+    /*
+	anguloRad = angulo actual de la bola en radianes
+    anguloRender = angulo rotado por ROTACION para que la casilla 0
+    (verde) aparezca en la parte superior del circulo (12 en punto)
+    */
     double anguloRad = theta * PI / 180.0;
     double anguloRender = anguloRad - ROTACION * PI / 180.0;
 
+    /*
+	Dibuja el contorno del circulo como una elipse: coloca '*' en las
+    celdas donde |(dx/RX)^2 + (dy/RY)^2 - 1| < 0.06 (tolerancia para
+    que el trazo se vea continuo). Cada '*' se colorea segun el numero
+    de la ruleta en esa posicion angular (rojo/verde/blanco)
+	*/
     for (int row = 0; row < H; row++) {
         for (int col = 0; col < W; col++) {
             double dx = (double)(col - CX) / RX;
@@ -135,6 +175,8 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         }
     }
 
+    //Coloca la bola 'O' en el borde del circulo segun el anguloRender,
+    //y un marcador '+' en el centro para referencia visual
     int bolaX = CX + (int)round(RX * cos(anguloRender));
     int bolaY = CY + (int)round(RY * sin(anguloRender));
     if (bolaX >= 0 && bolaX < W && bolaY >= 0 && bolaY < H) {
@@ -145,6 +187,8 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
     cuadricula[CY][CX] = '+';
     colorCuadricula[CY][CX] = COL_AMA;
 
+    //Etiqueta del numero y color fuera del borde del circulo, en la
+    //direccion de la bola. Se colorean segun la casilla (rojo/verde/blanco)
     int etiqX = CX + (int)round((RX + 3) * cos(anguloRender));
     int etiqY = CY + (int)round((RY + 1) * sin(anguloRender));
     string cadenaNum = to_string(numActual);
@@ -166,6 +210,9 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         }
     }
 
+    //Lambda que aplica el color en la consola segun el codigo numerico
+    //de colorCuadricula, para cambiar el color del texto al escribir
+    //cada segmento de caracteres del mismo color
     auto establecerColorCuadricula = [&](int c) {
         if (c == COL_ROJ) SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_INTENSITY);
         else if (c == COL_VER) SetConsoleTextAttribute(consola, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
@@ -174,6 +221,9 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         else SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
     };
 
+    //Renderiza la cuadricula fila por fila. Agrupa caracteres del mismo
+    //color en un segmento de texto para minimizar llamadas a la API de
+    //consola (critico para mantener fluidez)
     for (int row = 0; row < H; row++) {
         cout << "     ";
         int actual = COL_DEF;
@@ -191,6 +241,9 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         cout << "\n";
     }
 
+    //Muestra la informacion de estado: numero/color actual de la bola,
+    //velocidad angular, y el recorrido (3 anteriores y 2 siguientes)
+    //en la secuencia de la ruleta alrededor de la posicion actual
     int ant3 = (indice - 3 + NUM_CASILLAS) % NUM_CASILLAS;
     int ant2 = (indice - 2 + NUM_CASILLAS) % NUM_CASILLAS;
     int ant1 = (indice - 1 + NUM_CASILLAS) % NUM_CASILLAS;
@@ -210,6 +263,10 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
     cout << "] -> " << numeros[sig1] << " -> " << numeros[sig2] << "\n";
 }
 
+/*
+Muestra el resultado cuando la bola se detiene: primero un cartel
+con el numero ganador, luego de 2 segundos el resultado final
+*/
 void Ruleta::mostrarAterrizaje(int indice, int numero, string color) {
     string codColor = color.substr(0, 1);
     cout << "\n";
@@ -257,6 +314,12 @@ void Ruleta::mostrarAterrizaje(int indice, int numero, string color) {
     this_thread::sleep_for(chrono::milliseconds(1000));
 }
 
+/*
+Evalua si la apuesta del usuario es ganadora segun el tipo:
+1=numero exacto, 2=split, 3=calle, 4=esquina, 5=rojo, 6=negro,
+7=par, 8=impar, 9=bajo(1-18), 10=alto(19-36), 11-13=docenas,
+14-16=columnas
+*/
 bool Ruleta::evaluarApuesta(int tipoApuesta, vector<int> seleccion, int numero, string color) {
     switch (tipoApuesta) {
         case 1:
@@ -299,6 +362,11 @@ bool Ruleta::evaluarApuesta(int tipoApuesta, vector<int> seleccion, int numero, 
     }
 }
 
+/*
+Retorna el multiplicador de pago segun el tipo de apuesta en la ruleta
+europea: numero=35:1, split=17:1, calle=11:1, esquina=8:1,
+rojo/negro/par/impar/bajo/alto=1:1, docenas/columnas=2:1
+*/
 static double obtenerPago(int tipoApuesta) {
     switch (tipoApuesta) {
         case 1:  return 35.0;
@@ -321,16 +389,20 @@ static double obtenerPago(int tipoApuesta) {
     }
 }
 
-static void mostrarCelda(int n, const string& c) {
-    establecerColor(c);
-    string s = to_string(n);
-    if (n < 10) s = " " + s;
-    cout << " " << s << " " << c << "   ";
-    establecerColor("default");
-}
-
 static void mostrarMenuApuestas() {
     system("cls");
+
+    //Lambda auxiliar que pinta una celda de 8 caracteres con el color
+    //correspondiente al numero (rojo/verde/blanco), alineada con los
+    //bordes +--------+ de la mesa
+    auto mostrarCelda = [](int n, const string& c) {
+        establecerColor(c);
+        string s = to_string(n);
+        if (n < 10) s = " " + s;
+        cout << " " << s << " " << c << "   ";
+        establecerColor("default");
+    };
+
     cout << "\n";
     cout << "     +===========================+\n";
     cout << "     |      MESA DE RULETA       |\n";
@@ -413,6 +485,11 @@ static void mostrarMenuApuestas() {
     cout << "\n";
 }
 
+/*
+Bucle principal del juego: muestra la mesa, recibe la apuesta del usuario,
+ejecuta la simulacion, evalua si gano o perdio, actualiza el capital y
+pregunta si desea jugar otra vez
+*/
 void Ruleta::jugar(Usuario &usuario) {
     char jugarOtra = 's';
 
