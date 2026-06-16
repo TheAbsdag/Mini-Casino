@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <windows.h>
+#include "validacion.h"
 
 using namespace std;
 
@@ -552,7 +553,7 @@ void Ruleta::jugar(Usuario &usuario) {
             cout << "    Opcion: ";
 
             int opcion;
-            cin >> opcion;
+            opcion = leerEntero();
 
             if (opcion == 3) {
                 salir = true;
@@ -575,7 +576,7 @@ void Ruleta::jugar(Usuario &usuario) {
             // --- Agregar apuesta ---
             int tipoApuesta;
             cout << "    Seleccione tipo de apuesta (1-16): ";
-            cin >> tipoApuesta;
+            tipoApuesta = leerEntero();
 
             if (tipoApuesta < 1 || tipoApuesta > 16) {
                 cout << "    Tipo de apuesta no valido.\n";
@@ -587,7 +588,7 @@ void Ruleta::jugar(Usuario &usuario) {
 
             if (tipoApuesta == 1) {
                 cout << "    Ingrese numero (0-36): ";
-                cin >> num;
+                num = leerEntero();
                 if (num < 0 || num > 36) {
                     cout << "    Numero invalido.\n";
                     continue;
@@ -596,14 +597,14 @@ void Ruleta::jugar(Usuario &usuario) {
             } else if (tipoApuesta == 2) {
                 int n1, n2;
                 cout << "    Ingrese primer numero: ";
-                cin >> n1;
+                n1 = leerEntero();
                 cout << "    Ingrese segundo numero: ";
-                cin >> n2;
+                n2 = leerEntero();
                 seleccion.push_back(n1);
                 seleccion.push_back(n2);
             } else if (tipoApuesta == 3) {
                 cout << "    Ingrese el primer numero de la calle (1-34): ";
-                cin >> num;
+                num = leerEntero();
                 if (num < 1 || num > 34) {
                     cout << "    Invalido.\n";
                     continue;
@@ -611,7 +612,7 @@ void Ruleta::jugar(Usuario &usuario) {
                 seleccion.push_back(num);
             } else if (tipoApuesta == 4) {
                 cout << "    Ingrese la esquina (numero inferior izquierdo 1-32): ";
-                cin >> num;
+                num = leerEntero();
                 if (num < 1 || num > 32) {
                     cout << "    Invalido.\n";
                     continue;
@@ -625,7 +626,7 @@ void Ruleta::jugar(Usuario &usuario) {
             cout << "\n    Su capital actual: $" << fixed << setprecision(2)
                  << usuario.getCapital() << "\n";
             cout << "    Ingrese monto a apostar: $";
-            cin >> montoApuesta;
+            montoApuesta = leerDouble();
 
             // Validar: monto > 0 y no excede el capital disponible
             double totalExistente = 0.0;

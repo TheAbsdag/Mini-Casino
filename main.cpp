@@ -4,6 +4,7 @@
 #include "Ruleta.h"
 #include "Archivos.h"
 #include "Usuario.h"
+#include "validacion.h"
 
 using namespace std;
 
@@ -25,7 +26,7 @@ int main(int argc, char** argv) {
     do {
         mostrarMenuPrincipal();
         cout << "Ingrese una opcion: ";
-        cin >> opcion;
+        opcion = leerEntero();
 
         switch(opcion) {
             case 1:
@@ -56,9 +57,10 @@ void mostrarMenuJugador() {
     cout << "\n--- MENU JUGADOR ---" << endl;
     cout << "1. Jugar Tragamonedas" << endl;
     cout << "2. Jugar Ruleta" << endl;
-    cout << "3. Recargar capital" << endl;
-    cout << "4. Ver historial" << endl;
-    cout << "5. Cerrar sesion" << endl;
+    cout << "3. Jugar Dados"<<endl;
+    cout << "4. Recargar capital" << endl;
+    cout << "5. Ver historial" << endl;
+    cout << "6. Cerrar sesion" << endl;
 }
 
 void registrarUsuario() {
@@ -77,7 +79,7 @@ void registrarUsuario() {
     }
 
     cout << "Ingrese capital inicial: ";
-    cin >> capital;
+    capital = leerDouble();
 
     if (capital <= 0) {
         cout << "El capital debe ser mayor a cero." << endl;
@@ -112,7 +114,7 @@ void iniciarSesion() {
     do {
         mostrarMenuJugador();
         cout << "Ingrese una opcion: ";
-        cin >> opcion;
+        opcion = leerEntero();
 
         switch(opcion) {
             case 1:
@@ -124,12 +126,16 @@ void iniciarSesion() {
                 guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
                 break;
             }
-            case 3:
+            case 3:{
+            	cout << "Dados - Funcionalidad proxima..." << endl;
+				break;
+			}
+            case 4:
                 // Recargar capital
                 {
                     double monto;
                     cout << "Ingrese monto a recargar: ";
-                    cin >> monto;
+                    monto = leerDouble();
 
                     if (monto > 0) {
                         usuarioActual.recargar(monto);
@@ -140,11 +146,11 @@ void iniciarSesion() {
                     }
                 }
                 break;
-            case 4:
+            case 5:
                 // Ver historial
                 mostrarHistorial(usuarioActual.getNombre());
                 break;
-            case 5:
+            case 6:
                 // Guardar estado antes de cerrar sesion
                 guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
                 cout << "Sesion cerrada. Datos guardados." << endl;
@@ -152,5 +158,5 @@ void iniciarSesion() {
             default:
                 cout << "Opcion no valida." << endl;
         }
-    } while(opcion != 5);
+    } while(opcion != 6);
 }
