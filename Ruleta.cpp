@@ -38,9 +38,9 @@ void Ruleta::inicializarRueda() {
 }
 
 /*
-Inicializa el generador de numeros aleatorios y la secuencia de la rueda
+Inicializa el generador, la secuencia de la rueda y configura los FPS
 */
-Ruleta::Ruleta() {
+Ruleta::Ruleta(int frecuencia_actualizacion) : fps(frecuencia_actualizacion), friccion_mesa(0.0) {
     generador.seed(random_device{}());
     inicializarRueda();
     numeroGanador = 0;
@@ -48,47 +48,75 @@ Ruleta::Ruleta() {
 }
 
 /*
-Simula el giro fisico de la ruleta: genera velocidad angular aleatoria,
-desacelera por friccion en pasos de 33ms (30fps), y al detenerse
-calcula la casilla ganadora segun el angulo final
+Simula el giro completo: fase 1 (bola CW + mesa CCW giran),
+fase 2 (bola cae, mesa sigue girando con la bola en la casilla),
+fase 3 (mesa se detiene, se devuelve el indice ganador)
 */
 int Ruleta::simularGiro() {
-    uniform_real_distribution<double> distVelocidad(700.0, 1400.0);
-    uniform_real_distribution<double> distDesfase(0.0, 360.0);
-    uniform_real_distribution<double> distFriccion(200.0, 400.0);
+    uniform_real_distribution<double> distVelBola(700.0, 1400.0); // Velocidad inicial de la bola
+    uniform_real_distribution<double> distFricBola(150.0, 300.0); // Friccion de la bola
+    uniform_real_distribution<double> distVelMesa(200.0, 400.0); // Velocidad inicial de la mesa
+    uniform_real_distribution<double> distFricMesa(10.0, 30.0); // Friccion de la mesa
+    uniform_real_distribution<double> distDesfase(0.0, 360.0); // Desface aleatorio entre la mesa y la bola
 
-    double omega = distVelocidad(generador);
-    double theta = distDesfase(generador);
-    friccion = distFriccion(generador);
-    //Delta de tiempo para que corresponda con cada actualizaci�n dentro de los frames deseados
-    double dt = 1.0 / 30.0;
+    double omega_bola = distVelBola(generador);
+    double theta_bola = distDesfase(generador);
+    double friccion_bola = distFricBola(generador);
 
-    system("cls");
+    double omega_mesa = -distVelMesa(generador);
+    double theta_mesa = distDesfase(generador);
+    friccion_mesa = distFricMesa(generador);
 
-	//Loop de muestreo para la visualizacion del cambio
-    while (omega > 0.0) {
-        mostrarAnimacion(theta, omega, dt);
+    double dt = 1.0 / fps;
+    int sleep_ms = (int)(1000.0 / fps);
+    
+    double ralentizacionFase2 = 1.02; //Desaceleracion para fase 2 aumentada
 
-        omega -= friccion * dt;
-        if (omega < 0.0) omega = 0.0;
-        theta += omega * dt;
-        if (theta >= 360.0) theta -= 360.0;
-        if (theta < 0.0) theta += 360.0;
+	//Fase 1
+    while (omega_bola > 0.0) {
+        mostrarAnimacion(theta_bola, omega_bola, theta_mesa, omega_mesa);
 
-		//Dormir el proceso mientras se espera al siguiente calculo
-        this_thread::sleep_for(chrono::milliseconds(33));
+        omega_bola -= friccion_bola * dt;
+        if (omega_bola < 0.0) omega_bola = 0.0;
+
+        omega_mesa += friccion_mesa * dt;
+        if (omega_mesa > 0.0) omega_mesa = 0.0;
+
+        theta_bola += omega_bola * dt;
+        theta_mesa += omega_mesa * dt;
+
+        if (theta_bola >= 360.0) theta_bola -= 360.0;
+        if (theta_bola < 0.0) theta_bola += 360.0;
+        if (theta_mesa >= 360.0) theta_mesa -= 360.0;
+        if (theta_mesa < 0.0) theta_mesa += 360.0;
+
+        this_thread::sleep_for(chrono::milliseconds(sleep_ms));
     }
 
-	//Calculo de numero finalizador ya que la velocidad es 0
-    double anguloCasilla = 360.0 / NUM_CASILLAS;
-    int indice = (int)round(theta / anguloCasilla) % NUM_CASILLAS;
+    double slot_width = 360.0 / NUM_CASILLAS;
+    int indice = (int)round((theta_bola - theta_mesa) / slot_width) % NUM_CASILLAS;
     if (indice < 0) indice += NUM_CASILLAS;
 
     numeroGanador = numeros[indice];
     colorGanador = colores[indice];
+	
+	//Fase 2
+    while (omega_mesa < 0.0) {
+    	friccion_mesa = friccion_mesa *ralentizacionFase2; //Aumento de la friccion, desaceleracion forzada para que esta fase dure menos
+        theta_bola = fmod(indice * slot_width + theta_mesa, 360.0);
+        mostrarAnimacion(theta_bola, 0.0, theta_mesa, omega_mesa);
 
-    mostrarAterrizaje(indice, numeroGanador, colorGanador);
+        omega_mesa += friccion_mesa * dt;
+        if (omega_mesa > 0.0) omega_mesa = 0.0;
+        theta_mesa += omega_mesa * dt;
 
+        if (theta_mesa >= 360.0) theta_mesa -= 360.0;
+        if (theta_mesa < 0.0) theta_mesa += 360.0;
+
+        this_thread::sleep_for(chrono::milliseconds(sleep_ms));
+    }
+	
+	//Fase 3
     return indice;
 }
 
@@ -110,24 +138,22 @@ static void establecerColor(const string& color) {
 /*
 Dibuja la animacion del circulo y la bola en la consola. Usa
 SetConsoleCursorPosition para sobrescribir el frame anterior.
-Construye una cuadriculade caracteres con una matriz paralela
-de colores, luego la renderiza en segmentos del mismo color 
-para minimizar llamadas a la API de Windows
+Construye una cuadricula de caracteres con una matriz paralela
+de colores, luego la renderiza en segmentos del mismo color
+para minimizar llamadas a la API de Windows. Ahora incluye
+la rueda giratoria (slots offset por theta_mesa), la cruz
+rotativa y el panel informativo (velocidades bola/mesa, dif)
 */
-void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
-    //Obtiene el manejador de la consola para posicionar el cursor
-    //y cambiar colores sin borrar la pantalla (evita parpadeo entre frames)
+void Ruleta::mostrarAnimacion(double theta_bola, double omega_bola, double theta_mesa, double omega_mesa) {
     HANDLE consola = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleCursorPosition(consola, {0, 0});
 
     double anguloCasilla = 360.0 / NUM_CASILLAS;
-    int indice = (int)(theta / anguloCasilla) % NUM_CASILLAS;
+    int indice = (int)round((theta_bola - theta_mesa) / anguloCasilla) % NUM_CASILLAS;
     if (indice < 0) indice += NUM_CASILLAS;
     int numActual = numeros[indice];
     string colorActual = colores[indice];
 
-    //Dimensiones del circulo: RX=22, RY=11 compensa la relacion de aspecto
-    //2:1 de los caracteres de la consola para que se vea como un circulo
     const double PI = 3.14159265358979323846;
     const int RY = 11;
     const int RX = 22;
@@ -136,28 +162,15 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
     const int W = CX * 2 + 4;
     const int H = CY * 2 + 2;
 
-    //Codigos de color para la cuadricula: 0=defecto, 1=rojo, 2=verde,
-    //3=blanco, 4=amarillo (para la bola y el centro)
+	//Definicion para el color a manejar
     const int COL_DEF = 0, COL_ROJ = 1, COL_VER = 2, COL_BLA = 3, COL_AMA = 4;
-
-    //Cuadricula de caracteres y matriz paralela de colores
+	
     vector<string> cuadricula(H, string(W, ' '));
     vector<vector<int>> colorCuadricula(H, vector<int>(W, COL_DEF));
 
-    /*
-	anguloRad = angulo actual de la bola en radianes
-    anguloRender = angulo rotado por ROTACION para que la casilla 0
-    (verde) aparezca en la parte superior del circulo (12 en punto)
-    */
-    double anguloRad = theta * PI / 180.0;
-    double anguloRender = anguloRad - ROTACION * PI / 180.0;
+    double anguloRad = theta_bola * PI / 180.0;
+    double anguloRender = anguloRad;
 
-    /*
-	Dibuja el contorno del circulo como una elipse: coloca '*' en las
-    celdas donde |(dx/RX)^2 + (dy/RY)^2 - 1| < 0.06 (tolerancia para
-    que el trazo se vea continuo). Cada '*' se colorea segun el numero
-    de la ruleta en esa posicion angular (rojo/verde/blanco)
-	*/
     for (int row = 0; row < H; row++) {
         for (int col = 0; col < W; col++) {
             double dx = (double)(col - CX) / RX;
@@ -167,30 +180,50 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
                 cuadricula[row][col] = '*';
                 double a = atan2(dy, dx) * 180.0 / PI;
                 if (a < 0) a += 360.0;
-                a = fmod(a + ROTACION, 360.0);
+                a = a - theta_mesa;
+                a = fmod(a, 360.0);
+                if (a < 0) a += 360.0;
                 int idx = (int)round(a / anguloCasilla) % NUM_CASILLAS;
+                if (idx < 0) idx += NUM_CASILLAS;
                 string c = colores[idx];
                 colorCuadricula[row][col] = (c == "Rojo") ? COL_ROJ : (c == "Verde" ? COL_VER : COL_BLA);
             }
         }
     }
 
-    //Coloca la bola 'O' en el borde del circulo segun el anguloRender,
-    //y un marcador '+' en el centro para referencia visual
-    int bolaX = CX + (int)round(RX * cos(anguloRender));
-    int bolaY = CY + (int)round(RY * sin(anguloRender));
+    //Cruz rotativa (gira con la mesa, un brazo apunta a la casilla 0)
+    double armAngle = theta_mesa;
+    armAngle = fmod(armAngle, 360.0);
+    if (armAngle < 0) armAngle += 360.0;
+    double crossAngle = armAngle * PI / 180.0;
+    int crossLen = 6;
+    for (int arm = 0; arm < 4; arm++) {
+        double angle = crossAngle + arm * PI / 2.0;
+        for (int r = 1; r <= crossLen; r++) {
+            int x = CX + (int)round(r * cos(angle));
+            int y = CY + (int)round(r * sin(angle));
+            if (x >= 0 && x < W && y >= 0 && y < H && cuadricula[y][x] != 'O') {
+                cuadricula[y][x] = '+';
+                colorCuadricula[y][x] = COL_AMA;
+            }
+        }
+    }
+
+    //Bola: fuera de la rueda mientras gira, sobre la rueda al caer
+    double ballOffX = (omega_bola > 0.0) ? (RX + 3) : RX;
+    double ballOffY = (omega_bola > 0.0) ? (RY + 2) : RY;
+    int bolaX = CX + (int)round(ballOffX * cos(anguloRender));
+    int bolaY = CY + (int)round(ballOffY * sin(anguloRender));
     if (bolaX >= 0 && bolaX < W && bolaY >= 0 && bolaY < H) {
         cuadricula[bolaY][bolaX] = 'O';
         colorCuadricula[bolaY][bolaX] = COL_AMA;
     }
 
-    cuadricula[CY][CX] = '+';
-    colorCuadricula[CY][CX] = COL_AMA;
-
-    //Etiqueta del numero y color fuera del borde del circulo, en la
-    //direccion de la bola. Se colorean segun la casilla (rojo/verde/blanco)
-    int etiqX = CX + (int)round((RX + 3) * cos(anguloRender));
-    int etiqY = CY + (int)round((RY + 1) * sin(anguloRender));
+    //Etiqueta del numero y color: mas afuera si la bola esta en pista exterior
+    double etiqOffX = (omega_bola > 0.0) ? (RX + 5) : (RX + 3);
+    double etiqOffY = (omega_bola > 0.0) ? (RY + 3) : (RY + 1);
+    int etiqX = CX + (int)round(etiqOffX * cos(anguloRender));
+    int etiqY = CY + (int)round(etiqOffY * sin(anguloRender));
     string cadenaNum = to_string(numActual);
     int colorEtiqueta = (colorActual == "Rojo") ? COL_ROJ : (colorActual == "Verde" ? COL_VER : COL_BLA);
     for (size_t i = 0; i < cadenaNum.size(); i++) {
@@ -241,90 +274,30 @@ void Ruleta::mostrarAnimacion(double &theta, double &omega, double dt) {
         cout << "\n";
     }
 
-    //Tabla informativa a la derecha del circulo: usa SetConsoleCursorPosition
-    //para escribir en las columnas 62+ de las filas 0,2,4,5 sin recargar el
-    //circulo (evita parpadeo y es mas rapido que redibujar la cuadricula)
-    int ant3 = (indice - 3 + NUM_CASILLAS) % NUM_CASILLAS;
-    int ant2 = (indice - 2 + NUM_CASILLAS) % NUM_CASILLAS;
-    int ant1 = (indice - 1 + NUM_CASILLAS) % NUM_CASILLAS;
-    int sig1 = (indice + 1) % NUM_CASILLAS;
-    int sig2 = (indice + 2) % NUM_CASILLAS;
+    int velBola = (int)round(omega_bola);
+    int velMesa = (int)round(fabs(omega_mesa));
+    int diff = velBola - velMesa;
 
     SetConsoleCursorPosition(consola, {62, 0});
-    cout << "| Posicion actual: | ";
-    establecerColor(colorActual.substr(0, 1));
-    cout << setw(2) << setfill('0') << numActual << setfill(' ');
     establecerColor("default");
-    cout << "  ";
+    cout << "| Bola: " << setw(4) << velBola << " deg/s         ";
+
+    SetConsoleCursorPosition(consola, {62, 1});
+    cout << "| Mesa: " << setw(4) << velMesa << " deg/s         ";
 
     SetConsoleCursorPosition(consola, {62, 2});
-    cout << "| Velocidad (deg/s) | " << setw(4) << (int)round(omega) << "  ";
+    cout << "| Dif:  " << setw(4) << diff << " deg/s         ";
 
-    SetConsoleCursorPosition(consola, {62, 4});
-    cout << "| Recorrido: |";
-
-    SetConsoleCursorPosition(consola, {62, 5});
-    cout << "  " << setw(2) << setfill('0') << numeros[ant3] << " -> "
-         << setw(2) << setfill('0') << numeros[ant2] << " -> "
-         << setw(2) << setfill('0') << numeros[ant1] << " -> [";
-    establecerColor(colorActual.substr(0, 1));
-    cout << setw(2) << setfill('0') << numActual;
-    establecerColor("default");
-    cout << setfill(' ') << "] -> " << setw(2) << setfill('0') << numeros[sig1]
-         << " -> " << setw(2) << setfill('0') << numeros[sig2] << "  ";
+    if (omega_bola <= 0.0) {
+        SetConsoleCursorPosition(consola, {62, 4});
+        establecerColor(colorActual.substr(0, 1));
+        cout << "  *** CAYO: " << setw(2) << setfill('0') << numActual
+             << " " << colorActual << " ***";
+        cout << setfill(' ');
+        establecerColor("default");
+    }
 
     SetConsoleCursorPosition(consola, {0, H});
-}
-
-/*
-Muestra el resultado cuando la bola se detiene: primero un cartel
-con el numero ganador, luego de 2 segundos el resultado final
-*/
-void Ruleta::mostrarAterrizaje(int indice, int numero, string color) {
-    string codColor = color.substr(0, 1);
-    cout << "\n";
-    cout << "         +=========================+\n";
-    cout << "         |   BOLA SE DETUVO!       |\n";
-    cout << "         +=========================+\n";
-    cout << "\n";
-    cout << "              +-------------------+\n";
-    cout << "              |  ";
-    establecerColor(codColor);
-    cout << setw(2) << numero << "               ";
-    establecerColor("default");
-    cout << "|\n";
-    cout << "              |  ";
-    establecerColor(codColor);
-    cout << color;
-    establecerColor("default");
-    cout << "             |\n";
-    cout << "              +-------------------+\n";
-    cout << "\n";
-    cout << "           +====================+\n";
-    cout << "           |     GANADOR!        |\n";
-    cout << "           +====================+\n";
-
-    this_thread::sleep_for(chrono::milliseconds(2000));
-
-    cout << "\n\n";
-    cout << "         +============================+\n";
-    cout << "         |      RESULTADO FINAL        |\n";
-    cout << "         +============================+\n";
-    cout << "\n";
-    cout << "              +-------------------+\n";
-    cout << "              |  ";
-    establecerColor(codColor);
-    cout << setw(2) << numero << "               ";
-    establecerColor("default");
-    cout << "|\n";
-    cout << "              |  ";
-    establecerColor(codColor);
-    cout << color;
-    establecerColor("default");
-    cout << "             |\n";
-    cout << "              +-------------------+\n";
-    cout << "\n";
-    this_thread::sleep_for(chrono::milliseconds(1000));
 }
 
 /*
@@ -498,10 +471,63 @@ static void mostrarMenuApuestas() {
     cout << "\n";
 }
 
+//Funcion para los tipos de apuesta, podria ser lambda pero separado por como el metodo esta lleno ya
+static string obtenerNombreApuesta(int tipo) {
+    switch (tipo) {
+        case 1:  return "Numero";
+        case 2:  return "Split";
+        case 3:  return "Calle";
+        case 4:  return "Esquina";
+        case 5:  return "Rojo";
+        case 6:  return "Negro";
+        case 7:  return "Par";
+        case 8:  return "Impar";
+        case 9:  return "Bajo";
+        case 10: return "Alto";
+        case 11: return "Doc1-12";
+        case 12: return "Doc13-24";
+        case 13: return "Doc25-36";
+        case 14: return "Colum1";
+        case 15: return "Colum2";
+        case 16: return "Colum3";
+        default: return "???";
+    }
+}
+
+//Renderizado apuestas actuales dadas
+static void mostrarApuestasActuales(const vector<Apuesta>& apuestas, double capital) {
+    cout << "\n";
+    cout << "     +========================================+\n";
+    cout << "     |         APUESTAS ACTUALES              |\n";
+    cout << "     +------+-----------+----------+----------+\n";
+    cout << "     |  #   | Tipo      | Monto    | Seleccion|\n";
+    cout << "     +------+-----------+----------+----------+\n";
+
+    double total = 0.0;
+    for (size_t i = 0; i < apuestas.size(); i++) {
+        cout << "     | " << setw(2) << (i+1) << "  | " << setw(9) << left
+             << obtenerNombreApuesta(apuestas[i].tipo) << right << " | $"
+             << setw(7) << fixed << setprecision(2) << apuestas[i].monto << " | ";
+        string sel;
+        for (size_t j = 0; j < apuestas[i].seleccion.size(); j++) {
+            if (j > 0) sel += ",";
+            sel += to_string(apuestas[i].seleccion[j]);
+        }
+        cout << left << setw(9) << sel << right << "|\n";
+        total += apuestas[i].monto;
+    }
+
+    cout << "     +------+-----------+----------+----------+\n";
+    cout << "     |  Capital: $" << fixed << setprecision(2) << capital
+         << "  | Apostado: $" << total
+         << "  | Disp: $" << (capital - total) << " |\n";
+    cout << "     +========================================+\n";
+    cout << "\n";
+}
+
 /*
-Bucle principal del juego: muestra la mesa, recibe la apuesta del usuario,
-ejecuta la simulacion, evalua si gano o perdio, actualiza el capital y
-pregunta si desea jugar otra vez
+Bucle principal: menu de apuestas multiples, giro con fisica,
+evaluacion de cada apuesta, tabla detallada de resultados y neto
 */
 void Ruleta::jugar(Usuario &usuario) {
     char jugarOtra = 's';
@@ -514,84 +540,194 @@ void Ruleta::jugar(Usuario &usuario) {
 
         mostrarMenuApuestas();
 
-        int tipoApuesta;
-        cout << "    Seleccione tipo de apuesta (1-16): ";
-        cin >> tipoApuesta;
+        vector<Apuesta> apuestas;
+        bool salir = false;
 
-        if (tipoApuesta < 1 || tipoApuesta > 16) {
-            cout << "    Opcion no valida.\n";
-            continue;
-        }
+        while (!salir) {
+            mostrarApuestasActuales(apuestas, usuario.getCapital());
 
-        vector<int> seleccion;
-        int num;
+            cout << "    (1) Agregar apuesta\n";
+            cout << "    (2) Girar ruleta\n";
+            cout << "    (3) Cancelar y volver\n";
+            cout << "    Opcion: ";
 
-        if (tipoApuesta == 1) {
-            cout << "    Ingrese numero (0-36): ";
-            cin >> num;
-            if (num < 0 || num > 36) {
-                cout << "    Numero invalido.\n";
+            int opcion;
+            cin >> opcion;
+
+            if (opcion == 3) {
+                salir = true;
                 continue;
             }
-            seleccion.push_back(num);
-        } else if (tipoApuesta == 2) {
-            int n1, n2;
-            cout << "    Ingrese primer numero: ";
-            cin >> n1;
-            cout << "    Ingrese segundo numero: ";
-            cin >> n2;
-            seleccion.push_back(n1);
-            seleccion.push_back(n2);
-        } else if (tipoApuesta == 3) {
-            cout << "    Ingrese el primer numero de la calle (1-34): ";
-            cin >> num;
-            if (num < 1 || num > 34) {
-                cout << "    Invalido.\n";
+
+            if (opcion == 2) {
+                if (apuestas.empty()) {
+                    cout << "    Debe agregar al menos una apuesta.\n";
+                    continue;
+                }
+                break;
+            }
+
+            if (opcion != 1) {
+                cout << "    Opcion no valida.\n";
                 continue;
             }
-            seleccion.push_back(num);
-        } else if (tipoApuesta == 4) {
-            cout << "    Ingrese la esquina (numero inferior izquierdo 1-32): ";
-            cin >> num;
-            if (num < 1 || num > 32) {
-                cout << "    Invalido.\n";
+
+            // --- Agregar apuesta ---
+            int tipoApuesta;
+            cout << "    Seleccione tipo de apuesta (1-16): ";
+            cin >> tipoApuesta;
+
+            if (tipoApuesta < 1 || tipoApuesta > 16) {
+                cout << "    Tipo de apuesta no valido.\n";
                 continue;
             }
-            seleccion.push_back(num);
-        } else {
-            seleccion.push_back(0);
-        }
 
-        double montoApuesta;
-        cout << "\n    Su capital actual: $" << fixed << setprecision(2)
-             << usuario.getCapital() << "\n";
-        cout << "    Ingrese monto a apostar: $";
-        cin >> montoApuesta;
+            vector<int> seleccion;
+            int num;
 
-        if (!usuario.apostar(montoApuesta)) {
-            cout << "    Monto invalido o excede su capital.\n";
-            continue;
-        }
+            if (tipoApuesta == 1) {
+                cout << "    Ingrese numero (0-36): ";
+                cin >> num;
+                if (num < 0 || num > 36) {
+                    cout << "    Numero invalido.\n";
+                    continue;
+                }
+                seleccion.push_back(num);
+            } else if (tipoApuesta == 2) {
+                int n1, n2;
+                cout << "    Ingrese primer numero: ";
+                cin >> n1;
+                cout << "    Ingrese segundo numero: ";
+                cin >> n2;
+                seleccion.push_back(n1);
+                seleccion.push_back(n2);
+            } else if (tipoApuesta == 3) {
+                cout << "    Ingrese el primer numero de la calle (1-34): ";
+                cin >> num;
+                if (num < 1 || num > 34) {
+                    cout << "    Invalido.\n";
+                    continue;
+                }
+                seleccion.push_back(num);
+            } else if (tipoApuesta == 4) {
+                cout << "    Ingrese la esquina (numero inferior izquierdo 1-32): ";
+                cin >> num;
+                if (num < 1 || num > 32) {
+                    cout << "    Invalido.\n";
+                    continue;
+                }
+                seleccion.push_back(num);
+            } else {
+                seleccion.push_back(0);
+            }
 
-        simularGiro();
-
-        bool gano = evaluarApuesta(tipoApuesta, seleccion, numeroGanador, colorGanador);
-
-        if (gano) {
-            double pago = obtenerPago(tipoApuesta);
-            double ganancia = montoApuesta * pago;
-            double total = montoApuesta + ganancia;
-            usuario.setCapital(usuario.getCapital() + total);
-
-            cout << "\n    !!! FELICIDADES !!!\n";
-            cout << "    Gano $" << fixed << setprecision(2) << ganancia << "\n";
-            cout << "    Nuevo capital: $" << usuario.getCapital() << "\n";
-            registrarMovimiento(usuario.getNombre(), "Ruleta", ganancia, true);
-        } else {
-            cout << "\n    Lo siento, perdio la apuesta.\n";
-            cout << "    Nuevo capital: $" << fixed << setprecision(2)
+            double montoApuesta;
+            cout << "\n    Su capital actual: $" << fixed << setprecision(2)
                  << usuario.getCapital() << "\n";
-            registrarMovimiento(usuario.getNombre(), "Ruleta", montoApuesta, false);
+            cout << "    Ingrese monto a apostar: $";
+            cin >> montoApuesta;
+
+            // Validar: monto > 0 y no excede el capital disponible
+            double totalExistente = 0.0;
+            for (const auto& a : apuestas) totalExistente += a.monto;
+            double disponible = usuario.getCapital() - totalExistente;
+
+            if (montoApuesta <= 0 || montoApuesta > disponible) {
+                cout << "    Monto invalido. Disponible: $"
+                     << fixed << setprecision(2) << disponible << "\n";
+                continue;
+            }
+
+            apuestas.push_back({tipoApuesta, seleccion, montoApuesta});
+            cout << "    Apuesta agregada. Total apostado: $"
+                 << fixed << setprecision(2) << (totalExistente + montoApuesta) << "\n";
+        }
+
+        if (salir) return;
+
+        // Descontar todas las apuestas de una vez
+        double totalApostado = 0.0;
+        double capitalOriginal = usuario.getCapital();
+        for (const auto& a : apuestas) totalApostado += a.monto;
+        usuario.setCapital(usuario.getCapital() - totalApostado);
+
+        // Girar
+        system("cls");
+        simularGiro();
+        
+		
+		//Mostrar capital original antes de calcular ganancias y perdidas
+        cout << "     +============================================+\n";
+        cout << "     | Capital original: $" << capitalOriginal << "                   |\n";
+        cout << "     +============================================+\n";
+
+        // Evaluar todas las apuestas
+        double totalGanado = 0.0;
+        struct Resultado {
+            Apuesta apuesta;
+            bool gano;
+            double pago;
+        };
+        vector<Resultado> resultados;
+
+        for (const auto& a : apuestas) {
+            bool gano = evaluarApuesta(a.tipo, a.seleccion, numeroGanador, colorGanador);
+            double pago = 0.0;
+            if (gano) {
+                pago = a.monto * obtenerPago(a.tipo);
+                totalGanado += a.monto + pago;
+            }
+            resultados.push_back({a, gano, pago});
+        }
+
+        // Actualizar capital con ganancias
+        usuario.setCapital(usuario.getCapital() + totalGanado);
+
+        // Mostrar tabla de resultados
+        cout << "\n\n";
+        cout << "     +============================================+\n";
+        cout << "     |               RESULTADOS                   |\n";
+        cout << "     +============================================+\n";
+        string codColor = colorGanador.substr(0, 1);
+        cout << "     | Numero ganador: ";
+        establecerColor(codColor);
+        cout << setw(2) << numeroGanador << " " << colorGanador;
+        establecerColor("default");
+        cout << "                       |\n";
+        cout << "     +------+-----------+----------+--------+----------+\n";
+        cout << "     |  #   | Tipo      | Monto    | Result | Pago     |\n";
+        cout << "     +------+-----------+----------+--------+----------+\n";
+
+        for (size_t i = 0; i < resultados.size(); i++) {
+            string res = resultados[i].gano ? "GANO" : "PERDIO";
+            cout << "     | " << setw(2) << (i+1) << "  | " << setw(9) << left
+                 << obtenerNombreApuesta(resultados[i].apuesta.tipo) << right
+                 << " | $" << setw(7) << fixed << setprecision(2)
+                 << resultados[i].apuesta.monto << " | " << setw(6) << res
+                 << " | $" << setw(7) << resultados[i].pago << " |\n";
+        }
+
+        cout << "     +------+-----------+----------+--------+----------+\n";
+        cout << "     | Total apostado: $" << fixed << setprecision(2)
+             << totalApostado << "\n";
+        cout << "     | Total ganado:   $" << totalGanado << "\n";
+        cout << "     | Neto:           $";
+        double neto = totalGanado - totalApostado;
+        if (neto >= 0) cout << "+";
+        cout << neto << "\n";
+        cout << "     +============================================+\n";
+        cout << "     | Nuevo capital: $" << usuario.getCapital() << "                   |\n";
+        cout << "     +============================================+\n";
+        cout << "\n";
+        this_thread::sleep_for(chrono::milliseconds(3000));
+
+        // Registrar cada resultado
+        for (const auto& r : resultados) {
+            if (r.gano) {
+                registrarMovimiento(usuario.getNombre(), "Ruleta",r.pago, true);
+            } else {
+                registrarMovimiento(usuario.getNombre(), "Ruleta", r.apuesta.monto, false);
+            }
         }
 
         cout << "\n    Desea jugar otra vez? (s/n): ";

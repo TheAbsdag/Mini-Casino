@@ -6,28 +6,36 @@
 #include <random>
 #include "Usuario.h"
 
+struct Apuesta {
+    int tipo;
+    std::vector<int> seleccion;
+    double monto;
+};
+
 class Ruleta {
 private:
     static const int NUM_CASILLAS = 37;
-    static constexpr double ROTACION = 90.0;
-    int numeros[NUM_CASILLAS];              // secuencia de numeros de la rueda (sentido horario)
-    std::string colores[NUM_CASILLAS];      // "Rojo", "Negro", "Verde"
+    int numeros[NUM_CASILLAS];                  // secuencia de numeros de la rueda (sentido horario)
+    std::string colores[NUM_CASILLAS];          // "Rojo", "Negro", "Verde"
     int numeroGanador;
     std::string colorGanador;
-    double friccion;                        // constante de desaceleracion (grados/s^2)
-    std::mt19937 generador;                 // generador de numeros aleatorios
+    std::mt19937 generador;                     // generador de numeros aleatorios
+
+    double friccion_mesa;                       // friccion de la mesa (grados/s^2), persistente entre fases
+    int fps;
 
     // Fisica y animacion
-    void inicializarRueda();
-    int simularGiro();                      // ejecuta fisica + animacion, devuelve el indice ganador
-    void mostrarAnimacion(double &theta, double &omega, double dt);
-    void mostrarAterrizaje(int indice, int numero, std::string color);
+    void inicializarRueda();					// Inicializaci�n de los valores de rueda, este caso tipo europea
+    int simularGiro();                          // ejecuta fisica + animacion, devuelve el indice ganador
+
+    // Renderizado de la animacion (recibe estado de bola + mesa)
+    void mostrarAnimacion(double theta_bola, double omega_bola, double theta_mesa, double omega_mesa);
 
     // Evaluacion de apuestas
     bool evaluarApuesta(int tipoApuesta, std::vector<int> seleccion, int numero, std::string color);
 
 public:
-    Ruleta();
+    Ruleta(int frecuencia_actualizacion = 60); //Constructor manejado, con los frames deseados en la construccion del mismo
     void jugar(Usuario &usuario);
 };
 
