@@ -68,8 +68,8 @@ int Ruleta::simularGiro() {
     double theta_mesa = distDesfase(generador);
     friccion_mesa = distFricMesa(generador);
 
-	double dt = 0.0001;
-    //double dt = 1.0 / fps;
+	//double dt = 0.0001;
+    double dt = 1.0 / fps;
     int sleep_ms = (int)(1000.0 / fps);
     
     double ralentizacionFase2 = 1.02; //Desaceleracion para fase 2 aumentada
