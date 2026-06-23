@@ -13,19 +13,19 @@ public:
     Usuario();
     
     //Constructor con datos
-    Usuario(std::string nom, double cap);
+    Usuario(std::string nom, double cap); //Creacion del usuario
 
     // Getters
     std::string getNombre();
     double getCapital();
 
-    // Setters
-    void setNombre(std::string nom);
+    // Setters 
+    void setNombre(std::string nom); 
     void setCapital(double cap);
 
     // Métodos básicos
-    bool apostar(double monto);
-    void recargar(double monto);
+    bool apostar(double monto); //Booleando representa si es valida o no la apuesta
+    void recargar(double monto); //Recarga al usuario
 };
 
 #endif
