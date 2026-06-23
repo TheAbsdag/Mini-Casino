@@ -138,6 +138,22 @@ static void establecerColor(const string& color) {
 }
 
 /*
+Codigos de color para usar con SetConsoleTextAttribute en toda
+la ruleta. Se usan tanto en la animacion del giro como en los
+paneles de la mesa y el menu de apuestas.
+COL_DEF = color por defecto (blanco/gris)
+COL_ROJ = rojo intenso
+COL_VER = verde intenso
+COL_BLA = blanco (gris claro, mismo que COL_DEF)
+COL_AMA = amarillo intenso
+*/
+static const int COL_DEF = 0;
+static const int COL_ROJ = 1;
+static const int COL_VER = 2;
+static const int COL_BLA = 3;
+static const int COL_AMA = 4;
+
+/*
 Dibuja la animacion del circulo y la bola en la consola. Usa
 SetConsoleCursorPosition para sobrescribir el frame anterior.
 Construye una cuadricula de caracteres con una matriz paralela
@@ -164,8 +180,6 @@ void Ruleta::mostrarAnimacion(double theta_bola, double omega_bola, double theta
     const int W = CX * 2 + 4;
     const int H = CY * 2 + 2;
 
-	//Definicion para el color a manejar
-    const int COL_DEF = 0, COL_ROJ = 1, COL_VER = 2, COL_BLA = 3, COL_AMA = 4;
 	
     vector<string> cuadricula(H, string(W, ' '));
     vector<vector<int>> colorCuadricula(H, vector<int>(W, COL_DEF));
@@ -377,99 +391,258 @@ static double obtenerPago(int tipoApuesta) {
     }
 }
 
-static void mostrarMenuApuestas() {
-    system("cls");
+/*
+Estructura que almacena un panel de texto con informacion de color
+por caracter. Cada linea de texto (string en 'lineas') tiene un vector
+paralelo de codigos de color en 'colores' para renderizar cada caracter
+con el color correcto en la consola.
+*/
+struct PanelTexto {
+    vector<string> lineas;
+    vector<vector<int>> colores;
+};
 
-    //Lambda auxiliar que pinta una celda de 8 caracteres con el color
-    //correspondiente al numero (rojo/verde/blanco), alineada con los
-    //bordes +--------+ de la mesa
-    auto mostrarCelda = [](int n, const string& c) {
-        establecerColor(c);
-        string s = to_string(n);
-        if (n < 10) s = " " + s;
-        cout << " " << s << " " << c << "   ";
-        establecerColor("default");
+/*
+Agrega una linea completa al panel con un color uniforme para todas
+sus posiciones (COL_DEF por defecto). Util cuando la linea entera
+tiene un solo color (como los bordes y separadores).
+*/
+static void agregarLineaAlPanel(PanelTexto& panel, const string& linea, int color = COL_DEF) {
+    panel.lineas.push_back(linea);
+    panel.colores.push_back(vector<int>(linea.size(), color));
+}
+
+/*
+Construye el panel izquierdo con la representacion grafica de la mesa
+de ruleta. Incluye el numero 0, la cuadricula de 12 filas x 3 columnas
+con sus numeros y colores (rojo, negro, verde), las secciones de
+docenas (1-12, 13-24, 25-36), columnas (C1, C2, C3), apuestas externas
+(rojo, negro, par, impar, bajo, alto) y la leyenda de colores.
+*/
+static PanelTexto construirPanelTabla() {
+    PanelTexto panel;
+
+    /*
+    Escribe una celda de numero en la cuadricula aplicando el color
+    correspondiente segun el codigo (R=rojo intenso, V=verde intenso,
+    N=color por defecto). Cada celda ocupa 8 caracteres: espacio,
+    numero de 1 o 2 digitos, espacio, codigo de color y 3 espacios.
+    */
+    auto escribirCelda = [](string& linea, vector<int>& cols, int numero, const string& codigoColor) {
+        string s = to_string(numero);
+        if (numero < 10) s = " " + s;
+        string texto = " " + s + " " + codigoColor + "   ";
+        int codigo = (codigoColor == "R") ? COL_ROJ : (codigoColor == "V") ? COL_VER : COL_DEF;
+        for (char ch : texto) {
+            linea += ch;
+            cols.push_back(codigo);
+        }
     };
 
-    cout << "\n";
-    cout << "     +===========================+\n";
-    cout << "     |      MESA DE RULETA       |\n";
-    cout << "     +===========================+\n\n";
-    cout << "           +--------+\n";
-    cout << "           |";
-    mostrarCelda(0, "V");
-    cout << "|\n";
-    cout << "           +--------+\n";
-    cout << "     +--------+--------+--------+\n";
+    /*
+    Construye una linea completa de la cuadricula con 3 celdas numericas.
+    Recibe el prefijo (borde izquierdo con tuberia), los 3 numeros y sus
+    codigos de color, y agrega la linea completa al panel con los colores
+    de cada celda preservados.
+    */
+    auto agregarLineaConCeldas = [&](const string& prefijo, int n1, const string& c1, int n2, const string& c2, int n3, const string& c3) {
+        string linea = prefijo;
+        vector<int> cols(linea.size(), COL_DEF);
+        escribirCelda(linea, cols, n1, c1); linea += "|"; cols.push_back(COL_DEF);
+        escribirCelda(linea, cols, n2, c2); linea += "|"; cols.push_back(COL_DEF);
+        escribirCelda(linea, cols, n3, c3); linea += "|"; cols.push_back(COL_DEF);
+        panel.lineas.push_back(linea);
+        panel.colores.push_back(cols);
+    };
+
+    // Encabezado de la mesa
+    agregarLineaAlPanel(panel, "");
+    agregarLineaAlPanel(panel, "     +===========================+");
+    agregarLineaAlPanel(panel, "     |      MESA DE RULETA       |");
+    agregarLineaAlPanel(panel, "     +===========================+");
+    agregarLineaAlPanel(panel, "");
+
+    // Fila del numero 0 (verde)
+    agregarLineaAlPanel(panel, "           +--------+");
+    {
+        string linea = "           |";
+        vector<int> cols(linea.size(), COL_DEF);
+        escribirCelda(linea, cols, 0, "V");
+        linea += "|";
+        cols.push_back(COL_DEF);
+        panel.lineas.push_back(linea);
+        panel.colores.push_back(cols);
+    }
+    agregarLineaAlPanel(panel, "           +--------+");
+
+    // Cuadricula principal de 12 filas x 3 columnas (numeros 1-36)
     for (int f = 0; f < 12; f++) {
-        int n1 = f * 3 + 1;
-        int n2 = f * 3 + 2;
-        int n3 = f * 3 + 3;
+        int n1 = f * 3 + 1, n2 = f * 3 + 2, n3 = f * 3 + 3;
         string c1 = (f % 2 == 0) ? "R" : "N";
         string c2 = (f % 2 == 0) ? "N" : "R";
         string c3 = (f % 2 == 0) ? "R" : "N";
-        cout << "     |";
-        mostrarCelda(n1, c1);
-        cout << "|";
-        mostrarCelda(n2, c2);
-        cout << "|";
-        mostrarCelda(n3, c3);
-        cout << "|\n";
-        if (f < 11) cout << "     +--------+--------+--------+\n";
+        agregarLineaConCeldas("     |", n1, c1, n2, c2, n3, c3);
+        if (f < 11) agregarLineaAlPanel(panel, "     +--------+--------+--------+");
     }
-    cout << "     +--------+--------+--------+\n";
-    cout << "     |    1-12   (2:1)          |\n";
-    cout << "     +--------------------------+\n";
-    cout << "     |   13-24   (2:1)          |\n";
-    cout << "     +--------------------------+\n";
-    cout << "     |   25-36   (2:1)          |\n";
-    cout << "     +------+---------+---------+\n";
-    cout << "     | C1   |   C2    |   C3    |\n";
-    cout << "     | 2:1  |  2:1    |  2:1    |\n";
-    cout << "     +------+---------+---------+\n";
-    cout << "   +-------+--------+--------+-------+\n";
-    cout << "   | ";
-    establecerColor("R"); cout << "Rojo"; establecerColor("default");
-    cout << "  | ";
-    cout << "Negro";
-    cout << "  | Par    | Impar |\n";
-    cout << "   | (1:1) | (1:1)  | (1:1)  | (1:1) |\n";
-    cout << "   +-------+---+----+---+----+-------+\n";
-    cout << "   | Bajo      | Alto   |              |\n";
-    cout << "   | (1-18)    |(19-36) |              |\n";
-    cout << "   | (1:1)     | (1:1)  |              |\n";
-    cout << "   +-----------+--------+--------------+\n";
-    cout << "\n";
-    cout << "     (";
-    establecerColor("R"); cout << "R"; establecerColor("default");
-    cout << ")=Rojo  (";
-    cout << "N";
-    cout << ")=Negro  (";
-    establecerColor("V"); cout << "V"; establecerColor("default");
-    cout << ")=Verde\n";
-    cout << "======================================\n";
-    cout << "     SELECCIONE TIPO DE APUESTA:\n";
-    cout << "\n";
-    cout << "     +------+---------------+----------+\n";
-    cout << "     |  #   | Tipo          |  Pago    |\n";
-    cout << "     +------+---------------+----------+\n";
-    cout << "     |  1   | Numero        |  35:1    |\n";
-    cout << "     |  2   | Split         |  17:1    |\n";
-    cout << "     |  3   | Calle         |  11:1    |\n";
-    cout << "     |  4   | Esquina       |   8:1    |\n";
-    cout << "     |  5   | Rojo          |   1:1    |\n";
-    cout << "     |  6   | Negro         |   1:1    |\n";
-    cout << "     |  7   | Par           |   1:1    |\n";
-    cout << "     |  8   | Impar         |   1:1    |\n";
-    cout << "     |  9   | Bajo(1-18)    |   1:1    |\n";
-    cout << "     | 10   | Alto(19-36)   |   1:1    |\n";
-    cout << "     | 11   | Docena 1-12   |   2:1    |\n";
-    cout << "     | 12   | Docena 13-24  |   2:1    |\n";
-    cout << "     | 13   | Docena 25-36  |   2:1    |\n";
-    cout << "     | 14   | Columna 1     |   2:1    |\n";
-    cout << "     | 15   | Columna 2     |   2:1    |\n";
-    cout << "     | 16   | Columna 3     |   2:1    |\n";
-    cout << "     +------+---------------+----------+\n";
+    agregarLineaAlPanel(panel, "     +--------+--------+--------+");
+
+    // Seccion de docenas (1-12, 13-24, 25-36) con pago 2:1
+    agregarLineaAlPanel(panel, "     +--------+--------+--------+");
+    agregarLineaAlPanel(panel, "     |    1-12   (2:1)          |");
+    agregarLineaAlPanel(panel, "     +--------------------------+");
+    agregarLineaAlPanel(panel, "     |   13-24   (2:1)          |");
+    agregarLineaAlPanel(panel, "     +--------------------------+");
+    agregarLineaAlPanel(panel, "     |   25-36   (2:1)          |");
+
+    // Seccion de columnas (C1, C2, C3) con pago 2:1
+    agregarLineaAlPanel(panel, "     +------+---------+---------+");
+    agregarLineaAlPanel(panel, "     | C1   |   C2    |   C3    |");
+    agregarLineaAlPanel(panel, "     | 2:1  |  2:1    |  2:1    |");
+    agregarLineaAlPanel(panel, "     +------+---------+---------+");
+
+    // Apuestas externas: rojo, negro, par, impar
+    agregarLineaAlPanel(panel, "   +-------+--------+--------+-------+");
+    agregarLineaAlPanel(panel, "   | Rojo  | Negro  | Par    | Impar |");
+    agregarLineaAlPanel(panel, "   | (1:1) | (1:1)  | (1:1)  | (1:1) |");
+    agregarLineaAlPanel(panel, "   +-------+--------+--------+-------+");
+
+    // Apuestas externas: bajo (1-18), alto (19-36)
+    agregarLineaAlPanel(panel, "   | Bajo      | Alto   |              |");
+    agregarLineaAlPanel(panel, "   | (1-18)    |(19-36) |              |");
+    agregarLineaAlPanel(panel, "   | (1:1)     | (1:1)  |              |");
+    agregarLineaAlPanel(panel, "   +-----------+--------+--------------+");
+    agregarLineaAlPanel(panel, "");
+
+    // Leyenda: colorea la R en (R) y la V en (V)
+    string lineaColor = "     (R)=Rojo  (N)=Negro  (V)=Verde";
+    vector<int> coloresColor(lineaColor.size(), COL_DEF);
+    size_t rPos = lineaColor.find("(R)");
+    if (rPos != string::npos) coloresColor[rPos + 1] = COL_ROJ;
+    size_t vPos = lineaColor.find("(V)");
+    if (vPos != string::npos) coloresColor[vPos + 1] = COL_VER;
+    panel.lineas.push_back(lineaColor);
+    panel.colores.push_back(coloresColor);
+
+    return panel;
+}
+
+/*
+Construye el panel derecho con el menu de tipos de apuesta disponibles.
+Muestra una tabla con el numero de opcion, el nombre del tipo de apuesta
+y el pago correspondiente (35:1 para numero exacto, 17:1 para split,
+11:1 para calle, 8:1 para esquina, 1:1 para pares, 2:1 para docenas
+y columnas). Los datos se alinean en columnas de ancho fijo.
+*/
+static PanelTexto construirPanelOpciones() {
+    PanelTexto panel;
+
+    agregarLineaAlPanel(panel, "     SELECCIONE TIPO DE APUESTA:");
+    agregarLineaAlPanel(panel, "");
+    agregarLineaAlPanel(panel, "     +------+---------------+----------+");
+    agregarLineaAlPanel(panel, "     |  #   | Tipo          |  Pago    |");
+    agregarLineaAlPanel(panel, "     +------+---------------+----------+");
+
+    static const char* tipos[16] = {
+        "Numero", "Split", "Calle", "Esquina",
+        "Rojo", "Negro", "Par", "Impar",
+        "Bajo(1-18)", "Alto(19-36)", "Docena 1-12", "Docena 13-24",
+        "Docena 25-36", "Columna 1", "Columna 2", "Columna 3"
+    };
+    static const char* pagos[16] = {
+        "35:1", "17:1", "11:1", "8:1",
+        "1:1", "1:1", "1:1", "1:1",
+        "1:1", "1:1", "2:1", "2:1",
+        "2:1", "2:1", "2:1", "2:1"
+    };
+
+    for (int i = 0; i < 16; i++) {
+        int numero = i + 1;
+        string numStr = to_string(numero);
+        if (numero < 10) numStr = " " + numStr;
+
+        string tipoStr = tipos[i];
+        tipoStr += string(15 - tipoStr.size(), ' ');
+
+        string pagoStr = pagos[i];
+        pagoStr = string(9 - pagoStr.size(), ' ') + pagoStr;
+
+        string linea = "     | " + numStr + "   | " + tipoStr + " | " + pagoStr + " |";
+        agregarLineaAlPanel(panel, linea);
+    }
+
+    agregarLineaAlPanel(panel, "     +------+---------------+----------+");
+    return panel;
+}
+
+/*
+Renderiza dos paneles lado a lado en la consola. Calcula el ancho
+maximo de cada panel y los centra verticalmente si tienen diferentes
+alturas. Recorre las lineas de ambos paneles simultaneamente aplicando
+los colores del panel izquierdo caracter por caracter mediante la
+API de consola de Windows (SetConsoleTextAttribute). Entre el panel
+izquierdo y el derecho se dejan 4 espacios de separacion.
+*/
+static void mostrarPanelesJuntos(const PanelTexto& izquierdo, const PanelTexto& derecho) {
+    HANDLE consola = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    // Calcular el ancho maximo de cada panel
+    size_t anchoIzq = 0;
+    for (const auto& linea : izquierdo.lineas) anchoIzq = max(anchoIzq, linea.size());
+    size_t anchoDer = 0;
+    for (const auto& linea : derecho.lineas) anchoDer = max(anchoDer, linea.size());
+
+    size_t maxLineas = max(izquierdo.lineas.size(), derecho.lineas.size());
+
+    // Calcular desplazamiento vertical para centrar el panel mas corto
+    size_t desplIzq = 0, desplDer = 0;
+    if (izquierdo.lineas.size() < maxLineas) desplIzq = (maxLineas - izquierdo.lineas.size()) / 2;
+    if (derecho.lineas.size() < maxLineas) desplDer = (maxLineas - derecho.lineas.size()) / 2;
+
+    for (size_t i = 0; i < maxLineas; i++) {
+        // Renderizar linea del panel izquierdo con colores
+        size_t idxIzq = (i >= desplIzq && i - desplIzq < izquierdo.lineas.size()) ? i - desplIzq : (size_t)-1;
+        if (idxIzq != (size_t)-1) {
+            const string& linea = izquierdo.lineas[idxIzq];
+            const vector<int>& cols = izquierdo.colores[idxIzq];
+            for (size_t j = 0; j < linea.size(); j++) {
+                int c = (j < cols.size()) ? cols[j] : COL_DEF;
+                if (c == COL_ROJ) SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_INTENSITY);
+                else if (c == COL_VER) SetConsoleTextAttribute(consola, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+                else SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+                cout << linea[j];
+            }
+            for (size_t j = linea.size(); j < anchoIzq + 4; j++) cout << ' ';
+        } else {
+            for (size_t j = 0; j < anchoIzq + 4; j++) cout << ' ';
+        }
+
+        SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+        // Renderizar linea del panel derecho (sin colores)
+        size_t idxDer = (i >= desplDer && i - desplDer < derecho.lineas.size()) ? i - desplDer : (size_t)-1;
+        if (idxDer != (size_t)-1) {
+            cout << derecho.lineas[idxDer];
+            for (size_t j = derecho.lineas[idxDer].size(); j < anchoDer; j++) cout << ' ';
+        }
+
+        cout << "\n";
+    }
+
+    SetConsoleTextAttribute(consola, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+}
+
+/*
+Muestra el menu de apuestas de la ruleta en la consola. Limpia la
+pantalla, construye el panel de la mesa (izquierda) y el panel de
+opciones de apuesta (derecha), y los renderiza lado a lado.
+*/
+static void mostrarMenuApuestas() {
+    system("cls");
+
+    PanelTexto tabla = construirPanelTabla();
+    PanelTexto opciones = construirPanelOpciones();
+    mostrarPanelesJuntos(tabla, opciones);
+
     cout << "\n";
 }
 
@@ -539,13 +712,12 @@ void Ruleta::jugar(Usuario &usuario) {
             cout << "\nSaldo agotado. Debe recargar capital.\n";
             return;
         }
-
-        mostrarMenuApuestas();
-
+        
         vector<Apuesta> apuestas;
         bool salir = false;
 
         while (!salir) {
+        	mostrarMenuApuestas();
             mostrarApuestasActuales(apuestas, usuario.getCapital());
 
             cout << "    (1) Agregar apuesta\n";
