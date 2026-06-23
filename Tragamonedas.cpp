@@ -129,7 +129,7 @@ void Tragamonedas::jugar(Usuario &jugador){
         guardarUsuario(jugador.getNombre(), jugador.getCapital());
     }else{
 	 cout << "======================================\n";
-    cout << "     SELECCIONE TIPO DE APUESTA:\n";
+    cout << "          TABLA DE APUESTAS:\n";
     cout << "\n";
     cout << "     +---------------+----------+\n";
     cout << "     | Tipo          |  Pago    |\n";
@@ -146,7 +146,7 @@ void Tragamonedas::jugar(Usuario &jugador){
     cout << "     | 2x limon      |   1.1x   |\n";
     cout << "     | 2x campana    |   1.3x   |\n";
     cout << "     | 2x Diamante   |   1.4x   |\n";
-    cout << "     | 2x UN         | 2 tirada |\n";
+    cout << "     | 2x UN         | 2 tiradas|\n";
     cout << "     |               |  gratis  |\n";
     cout << "     +---------------+----------+\n";
     cout << "\n";
