@@ -23,8 +23,8 @@ public:
     void setNombre(std::string nom); 
     void setCapital(double cap);
 
-    // MÈtodos b·sicos
-    bool apostar(double monto); //Booleando representa si es valida o no la apuesta
+    // M√©todos b√°sicos
+    bool apostar(double monto); //Booleano representa si es valida o no la apuesta
     void recargar(double monto); //Recarga al usuario
 };
 
