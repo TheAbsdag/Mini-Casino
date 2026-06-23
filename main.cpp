@@ -5,6 +5,7 @@
 #include "Archivos.h"
 #include "Usuario.h"
 #include "validacion.h"
+#include "Dados.h"
 
 using namespace std;
 
@@ -131,7 +132,10 @@ void iniciarSesion() {
                 break;
             }
             case 3:{
-            	cout << "Dados - Funcionalidad proxima..." << endl;
+            	Dados dados;
+            	dados.jugar(usuarioActual);
+            	
+            	guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
 				break;
 			}
             case 4:
