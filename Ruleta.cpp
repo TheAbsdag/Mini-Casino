@@ -463,9 +463,9 @@ static PanelTexto construirPanelTabla() {
     agregarLineaAlPanel(panel, "");
 
     // Fila del numero 0 (verde)
-    agregarLineaAlPanel(panel, "           +--------+");
+    agregarLineaAlPanel(panel, "              +--------+");
     {
-        string linea = "           |";
+        string linea = "              |";
         vector<int> cols(linea.size(), COL_DEF);
         escribirCelda(linea, cols, 0, "V");
         linea += "|";
@@ -473,7 +473,7 @@ static PanelTexto construirPanelTabla() {
         panel.lineas.push_back(linea);
         panel.colores.push_back(cols);
     }
-    agregarLineaAlPanel(panel, "           +--------+");
+    agregarLineaAlPanel(panel, "     +--------+--------+--------+");
 
     // Cuadricula principal de 12 filas x 3 columnas (numeros 1-36)
     for (int f = 0; f < 12; f++) {
