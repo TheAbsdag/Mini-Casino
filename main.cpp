@@ -117,9 +117,13 @@ void iniciarSesion() {
         opcion = leerEntero();
 
         switch(opcion) {
-            case 1:
-                cout << "Tragamonedas - Funcionalidad proxima..." << endl;
+            case 1:{
+				Tragamonedas tragamonedas;
+                tragamonedas.jugar(usuarioActual);
+                guardarUsuario(usuarioActual.getNombre(), usuarioActual.getCapital());
                 break;
+			}
+               
             case 2: {
                 Ruleta ruleta;
                 ruleta.jugar(usuarioActual);
