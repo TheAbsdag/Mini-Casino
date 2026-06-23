@@ -15,6 +15,11 @@ struct Apuesta {
 class Ruleta {
 private:
     static const int NUM_CASILLAS = 37;
+    static const int MIN_NUMERO = 0;
+    //En caso de que se haga una ruleta personalizada
+    static const int MAX_NUMERO = NUM_CASILLAS-1;
+    static const int PRIMERA_CALLE_MAX = MAX_NUMERO - 2;  // 34 (cubre 34,35,36)
+    static const int PRIMERA_ESQUINA_MAX = MAX_NUMERO - 4; // 32 (cubre 32,33,35,36)
     int numeros[NUM_CASILLAS];                  // secuencia de numeros de la rueda (sentido horario)
     std::string colores[NUM_CASILLAS];          // "Rojo", "Negro", "Verde"
     int numeroGanador;

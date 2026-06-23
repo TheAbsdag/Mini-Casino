@@ -68,7 +68,8 @@ int Ruleta::simularGiro() {
     double theta_mesa = distDesfase(generador);
     friccion_mesa = distFricMesa(generador);
 
-    double dt = 1.0 / fps;
+	double dt = 0.0001;
+    //double dt = 1.0 / fps;
     int sleep_ms = (int)(1000.0 / fps);
     
     double ralentizacionFase2 = 1.02; //Desaceleracion para fase 2 aumentada
@@ -587,33 +588,41 @@ void Ruleta::jugar(Usuario &usuario) {
             int num;
 
             if (tipoApuesta == 1) {
-                cout << "    Ingrese numero (0-36): ";
+                cout << "    Ingrese numero (" << MIN_NUMERO << "-" << MAX_NUMERO << "): ";
                 num = leerEntero();
-                if (num < 0 || num > 36) {
+                if (num < MIN_NUMERO || num > MAX_NUMERO) {
                     cout << "    Numero invalido.\n";
                     continue;
                 }
                 seleccion.push_back(num);
             } else if (tipoApuesta == 2) {
                 int n1, n2;
-                cout << "    Ingrese primer numero: ";
+                cout << "    Ingrese primer numero (" << MIN_NUMERO << "-" << MAX_NUMERO << "): ";
                 n1 = leerEntero();
-                cout << "    Ingrese segundo numero: ";
+                if (n1 < MIN_NUMERO || n1 > MAX_NUMERO) {
+                    cout << "    Numero invalido.\n";
+                    continue;
+                }
+                cout << "    Ingrese segundo numero (" << MIN_NUMERO << "-" << MAX_NUMERO << "): ";
                 n2 = leerEntero();
+                if (n2 < MIN_NUMERO || n2 > MAX_NUMERO) {
+                    cout << "    Numero invalido.\n";
+                    continue;
+                }
                 seleccion.push_back(n1);
                 seleccion.push_back(n2);
             } else if (tipoApuesta == 3) {
-                cout << "    Ingrese el primer numero de la calle (1-34): ";
+                cout << "    Ingrese el primer numero de la calle (1-" << PRIMERA_CALLE_MAX << "): ";
                 num = leerEntero();
-                if (num < 1 || num > 34) {
+                if (num < 1 || num > PRIMERA_CALLE_MAX) {
                     cout << "    Invalido.\n";
                     continue;
                 }
                 seleccion.push_back(num);
             } else if (tipoApuesta == 4) {
-                cout << "    Ingrese la esquina (numero inferior izquierdo 1-32): ";
+                cout << "    Ingrese la esquina (numero inferior izquierdo 1-" << PRIMERA_ESQUINA_MAX << "): ";
                 num = leerEntero();
-                if (num < 1 || num > 32) {
+                if (num < 1 || num > PRIMERA_ESQUINA_MAX) {
                     cout << "    Invalido.\n";
                     continue;
                 }
