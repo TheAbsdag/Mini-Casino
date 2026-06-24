@@ -17,10 +17,10 @@ Integrantes
 * Juan Manuel Russi Martinez: [jrussim@unal.edu.co](mailto:jrussim@unal.edu.co) 
 
 Descripción  
-Se busca realizar una plataforma tipo casino, con término “mini” debido a que solo se presentarán dos juegos, específicamente: tragamonedas y ruleta, con ganancia, pérdidas y registros de x jugador
+Se busca realizar una plataforma tipo casino, con término “mini” debido a que solo se presentarán tres juegos, específicamente: tragamonedas, ruleta y dados, con ganancia, pérdidas y registros de x jugador
 
 Objetivo general  
-Realizar un sistema básico de casino donde se registre el nombre del integrante y el capital inicial, por medio de dos juegos puede aumentar o disminuir dicho capital, si el usuario pierde todo el capital, deberá realizar “ingreso” de nuevo capital para continuar jugando
+Realizar un sistema básico de casino donde se registre el nombre del integrante y el capital inicial, por medio de tres juegos puede aumentar o disminuir dicho capital, si el usuario pierde todo el capital, deberá realizar “ingreso” de nuevo capital para continuar jugando
 
 Objetivos específicos
 
@@ -34,6 +34,7 @@ Funcionalidades principales:
 * Control de capital: Asignación inicial, validación usuario-sistema (ganancia, pérdida, apuesta no sea mayor al capital), recarga cuando se llegue a cero  
 * Tragamonedas: Generación de símbolos, calculo de premios, y visualización de resultados y proceso en la consola  
 * Ruleta: Opciones de apuesta (número, color, paridad, rangos), simulación de giro con visualización relativa en consola, determinación de ganador y pago  
+* Dados: Lanzamiento de dos dados, con reglas de suma (7 u 11 → ganar el doble, 2, 3 o 12 → perder, cualquier otro → ganar 1:1)  
 * Persistencia: Almacenamiento local en archivos de texto, de los posibles datos como los usuarios y capital, historial de jugadas.  
 * Manejo de errores: Validación ingreso adecuado, control números negativos, control de variables y finalización adecuada del programa
 
@@ -56,12 +57,13 @@ Diagrama de flujo:
     
     PlayerMenu -->|1. Jugar Tragamonedas| CheckFunds{¿Capital > 0?}
     PlayerMenu -->|2. Jugar Ruleta| CheckFunds
-    PlayerMenu -->|3. Recargar Capital| Recharge[Ingresar monto a recargar]
+    PlayerMenu -->|3. Jugar Dados| CheckFunds
+    PlayerMenu -->|4. Recargar Capital| Recharge[Ingresar monto a recargar]
     Recharge --> UpdateFunds[Actualizar capital]
     UpdateFunds --> PlayerMenu
-    PlayerMenu -->|4. Ver Historial| View[Mostrar movimientos guardados]
+    PlayerMenu -->|5. Ver Historial| View[Mostrar movimientos guardados]
     View --> PlayerMenu
-    PlayerMenu -->|5. Cerrar Sesión| SaveSession[Guardar estado actual]
+    PlayerMenu -->|6. Cerrar Sesión| SaveSession[Guardar estado actual]
     SaveSession --> MainMenu
     
     CheckFunds -->|Sí| Bet[Ingresar apuesta]
@@ -70,7 +72,7 @@ Diagrama de flujo:
     
     Bet --> ValidBet{¿Apuesta válida?}
     ValidBet -->|No| Bet
-    ValidBet -->|Sí| RunGame[Ejecutar lógica del juego, Tragamonedas o Ruleta]
+    ValidBet -->|Sí| RunGame[Ejecutar lógica del juego, Tragamonedas, Ruleta o Dados]
     RunGame --> Calc[Calcular ganancia/pérdida]
     Calc --> Update[Actualizar capital del usuario]
     Update --> LogMove[Registrar movimiento en archivo]
